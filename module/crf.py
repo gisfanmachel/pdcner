@@ -8,7 +8,7 @@ import numpy as np
 
 START_TAG = -2
 STOP_TAG = -1
-
+# 实现了条件随机场（CRF）模型，用于序列标注任务。
 
 # Compute log sum exp in a numerically stable way for the forward algorithm
 def log_sum_exp(vec, m_size):

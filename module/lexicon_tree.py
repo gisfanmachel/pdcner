@@ -2,7 +2,7 @@
 
 
 import collections
-
+# 包含词典树（Trie）的实现，用于高效匹配和搜索词汇。
 class TrieNode:
     def __init__(self):
         self.children = collections.defaultdict(TrieNode)

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from function.utils import reverse_padded_sequence
-
+# 实现了双向长短期记忆网络（BiLSTM）。
 class BiLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, dropout):
         super(BiLSTM, self).__init__()

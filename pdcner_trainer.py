@@ -70,14 +70,14 @@ logger.addHandler(fh)
 
 PREFIX_CHECKPOINT_DIR = "checkpoint"
 
-
+# 用于设置随机种子以确保结果的可重复性。
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-
+# 用于生成数据加载器，根据训练或评估模式选择适当的采样器。
 def get_dataloader(dataset, args, mode='train'):
     """
     generator datasetloader for training.
@@ -115,7 +115,7 @@ def get_dataloader(dataset, args, mode='train'):
 
     return data_loader
 
-
+# 设置优化器和学习率调度器。
 def get_optimizer(model, args, num_training_steps):
     """
     Setup the optimizer and the learning rate scheduler
@@ -143,7 +143,7 @@ def get_optimizer(model, args, num_training_steps):
 
     return optimizer, scheduler
 
-
+# 打印和记录训练和评估的日志信息。
 def print_log(logs, epoch, global_step, eval_type, tb_writer, iterator=None):
     if epoch is not None:
         logs['epoch'] = epoch
@@ -173,7 +173,13 @@ def print_log(logs, epoch, global_step, eval_type, tb_writer, iterator=None):
     else:
         logger.info(output)
 
-
+# 这是训练模型的主要函数，它执行以下操作
+# 准备数据加载器。
+# 设置优化器和学习率调度器。
+# 检查是否使用混合精度训练。
+# 初始化分布式训练（如果适用）。
+# 执行训练循环，包括前向传播、损失计算、反向传播和参数更新。
+# 在每个epoch结束时保存模型的检查点。
 def train(model, args, train_dataset, dev_dataset, test_dataset, label_vocab, tb_writer, model_path=None):
 
 
@@ -422,7 +428,7 @@ def train(model, args, train_dataset, dev_dataset, test_dataset, label_vocab, tb
     logger.info("\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n")
     return global_step, tr_loss / global_step
 
-
+# 用于评估模型在给定数据集上的性能。它计算准确率、精确度、召回率和F1分数，并将预测结果保存到文件
 def evaluate(label_file, model, args, dataset, label_vocab, global_step, description="dev", write_file=False):
     """
     evaluate the model's performance
@@ -506,6 +512,7 @@ def evaluate(label_file, model, args, dataset, label_vocab, global_step, descrip
 
     return metrics, (all_true_labels, all_pred_labels)
 
+# 定义了一个对比损失函数，用于对比学习。
 # 用了对比学习，正样本拉近距离，负样本拉远距离，类似这样
 def cts_loss(z_i, z_j, temp, batch_size):  # B * D    B * D
 
@@ -543,7 +550,38 @@ def mask_correlated_samples(batch_size):
         mask[batch_size + i, i] = 0
     return mask
 
+# 程序的入口点，执行以下操作：
+#
+# 解析命令行参数。
+# 初始化日志记录和TensorBoard记录器。
+# 设置随机种子。
+# 准备数据和模型。
+# 如果设置了do_train，则调用train函数开始训练。
+# 如果设置了do_eval，则在开发集上评估模型。
+# 如果设置了do_predict，则在测试集上评估模型。
 
+#  --data_dir="data/dataset/NER/nky-pig" \
+#                   --output_dir="data/result/NER/nky-pig/pdcncercrf_20240511-2" \
+#                   --config_name="data/berts/bert/config.json" \
+#                   --model_name_or_path="data/berts/bert/pytorch_model.bin" \
+#                   --vocab_file="data/berts/bert/vocab.txt" \
+#                   --word_vocab_file="data/vocab/tencent_vocab.txt" \
+#                   --max_scan_num=1000000 \
+#                   --max_word_num=5 \
+#                   --label_file="data/dataset/NER/nky-pig/labels.txt" \
+#                   --word_embedding="data/embedding/word_embedding.txt" \
+#                   --saved_embedding_dir="data/dataset/NER/nky-pig" \
+#                   --model_type="WCBertCRF_Token" \
+#                   --seed=106524 \
+#                   --per_gpu_train_batch_size=4 \
+#                   --per_gpu_eval_batch_size=16 \
+#                   --learning_rate=1e-5 \
+#                   --max_steps=-1 \
+#                   --max_seq_length=256 \
+#                   --num_train_epochs=20 \
+#                   --warmup_steps=190 \
+#                   --save_steps=600 \
+#                   --logging_steps=100
 def main():
     args = get_argparse().parse_args()
     args.no_cuda = not torch.cuda.is_available()
@@ -556,6 +594,7 @@ def main():
     # os.environ["MASTER_ADDR"] = "localhost"
     # os.environ["MASTER_PORT"] = "13517"
 
+    # 脚本支持多GPU训练，使用了PyTorch的分布式通信包。
     ########### for multi-gpu training ##############
     if torch.cuda.is_available() and args.local_rank != -1:
         args.n_gpu = 1
@@ -612,6 +651,7 @@ def main():
         saved_corpus_embedding_dir=args.saved_embedding_dir,
     )
 
+    # 根据参数args.model_type，实例化了两种不同的模型：WCBertCRFForTokenClassification或BertWordLSTMCRFForTokenClassification。
     # d. define model
     config = BertConfig.from_pretrained(args.config_name)
     if args.model_type == "WCBertCRF_Token":

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-
+# 包含命令行参数解析的逻辑，用于配置训练、评估和预测过程中的参数。
 def get_argparse():
     parser = argparse.ArgumentParser()
 

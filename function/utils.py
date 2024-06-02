@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm, trange
 import torch
 import pickle
-
+# 提供了一些实用工具函数，例如加载预训练词嵌入、构建词嵌入、保存预测结果等。
 def load_pretrain_embed(embedding_path, max_scan_num=1000000, add_seg_vocab=False):
     """
     从pretrained word embedding中读取前max_scan_num的词向量

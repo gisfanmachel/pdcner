@@ -31,14 +31,20 @@ from transformers.modeling_bert import BertAttention, BertIntermediate, BertOutp
 BertLayerNorm = torch.nn.LayerNorm
 
 from function.utils import gather_indexes
+#定义了PDCNER模型的主要结构，包括BERT嵌入层、编码器、池化层和用于命名实体识别的CRF层。
 
+# 用于构建词嵌入，包括词(word)、位置(position)、和边界(boundary)嵌入。
+# 词嵌入是使用nn.Embedding创建的，并且具有一个特殊的边界嵌入层，用于处理边界信息。
 class BertEmbeddings(nn.Module):
     """
     Construct the embeddingns fron word, position and token_type, boundary embeddings
     """
     def __init__(self, config):
         super().__init__()
-
+        # word_embeddings: 将词汇映射到连续向量空间。
+        # position_embeddings: 给定序列中每个词的位置编码。
+        # token_type_embeddings: 用于区分不同类型的输入（如句子A和句子B）。
+        # boundary_embeddings: 用于表示词边界信息。
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
@@ -82,6 +88,8 @@ class BertEmbeddings(nn.Module):
         embeddings = self.dropout(embeddings)
         return embeddings
 
+# 扩展了BERT的层，增加了对匹配词的注意力机制。
+# 包含一个特殊的变换层word_transform，用于将词嵌入转换为与BERT模型隐藏层维度相匹配的表示。
 class BertLayer(nn.Module):
     """
     we modify the module to add word embedding information into the transformer
@@ -196,7 +204,11 @@ class BertLayer(nn.Module):
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output
 
+# 构建BERT模型的编码器部分，包含多个BertLayer。
+# 可以处理额外的词嵌入输入，并将其融合到BERT的隐藏状态中。
 
+# 由多个BertLayer组成，每个层都包含自注意力机制和前馈网络。
+# 可以通过input_word_embeddings和input_word_mask来融合额外的词嵌入信息。
 class BertEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -275,7 +287,10 @@ class BertEncoder(nn.Module):
 
         return tuple(v for v in [hidden_states, all_hidden_states, all_attentions] if v is not None)
 
+# 一个池化层，用于从BERT模型的序列输出中提取特征向量。
+# 使用一个线性层和激活函数来生成池化输出。
 
+# 使用一个线性层和Tanh激活函数来提取整个序列的代表性特征。
 class BertPooler(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -290,6 +305,9 @@ class BertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
         return pooled_output
 
+# 一个抽象基类，提供了权重初始化和加载预训练模型的接口。
+
+# # 提供了初始化权重和加载预训练BERT模型的方法。
 class BertPreTrainedModel(PreTrainedModel):
     """An abstract class to handle weights initialization and
     a simple interface for downloading and loading pretrained models.
@@ -312,6 +330,11 @@ class BertPreTrainedModel(PreTrainedModel):
         if isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
 
+# 定义了完整的BERT模型，包括嵌入层、编码器、池化层。
+# 可以加载预训练的BERT权重，并添加额外的池化层。
+
+# 结合了嵌入层、编码器和池化层，形成了完整的BERT模型。
+# 可以设置是否添加池化层。
 
 class WCBertModel(BertPreTrainedModel):
     def __init__(self, config, add_pooling_layer=True):
@@ -452,7 +475,11 @@ class WCBertModel(BertPreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
         )
+# 继承自BertPreTrainedModel，用于命名实体识别任务。
+# 结合了BERT模型和CRF层，用于序列标注任务。
 
+# 在BERT模型的基础上增加了dropout层和CRF层。
+# forward方法同时支持训练和预测模式。
 class WCBertCRFForTokenClassification(BertPreTrainedModel):
     def __init__(self, config, pretrained_embeddings, num_labels):
         super().__init__(config)
@@ -508,13 +535,19 @@ class WCBertCRFForTokenClassification(BertPreTrainedModel):
             _, preds = self.crf._viterbi_decode(logits, attention_mask)
             return (preds,)
 
+# 另一个用于命名实体识别的模型，结合了BERT、LSTM和CRF层。
 
+# 与WCBertCRFForTokenClassification类似，但增加了BiLSTM层来进一步处理BERT的输出。
 class BertWordLSTMCRFForTokenClassification(BertPreTrainedModel):
     """
     model-level fusion baseline
     concat bert vector with attention weighted sum word embedding
     and then input to LSTM-CRF
     """
+
+    # CRF（条件随机场）: 用于命名实体识别的序列标注任务，可以学习标签之间的依赖关系。
+
+    # BiLSTM（双向长短期记忆网络）: 用于学习序列数据的双向表示。
     def __init__(self, config, pretrained_embeddings, num_labels):
         super().__init__(config)
 

@@ -1,7 +1,7 @@
 import json
 import os
 
-
+# 将文本数据转换为JSON格式，并将数据集划分为训练集、验证集和测试集，同时生成标签列表文件。
 current_path = os.getcwd()
 dir_name_array = ["nky-chicken", "nky-chickenpig", "nky-pig"]
 percent_array = [1, 10, 30]

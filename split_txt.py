@@ -5,7 +5,7 @@ import math
 import json
 import os
 import random
-
+# 用于将原始文本数据分割成不同大小的数据集，例如1%，10%，30%的样本数据，以便于进行小样本学习。
 # 对现有样本数据进行小样本生成，分别是1%，10%，30%
 current_path = os.getcwd()
 dir_name_array = ["nky-chicken", "nky-chickenpig", "nky-pig"]

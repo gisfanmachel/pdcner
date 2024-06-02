@@ -14,7 +14,7 @@ for boundary
 
 import os
 import json
-
+# 包含ItemVocabFile和ItemVocabArray类，用于构建词汇表并提供从词汇到ID的转换功能。
 class ItemVocabFile():
     """
     Build vocab from file.

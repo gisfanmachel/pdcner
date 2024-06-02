@@ -6,7 +6,7 @@ import json
 import os
 import time
 from tqdm import tqdm, trange
-
+# 包含数据格式转换相关的函数，如将BMES格式转换为JSON格式。
 def BMES_to_json(bmes_file, json_file):
     """
     convert bmes format file to json file, json file has two key, including text and label

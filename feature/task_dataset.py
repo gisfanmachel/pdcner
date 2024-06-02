@@ -11,7 +11,8 @@ from torch.utils.data import Dataset
 from multiprocessing import Pool
 from function.preprocess import sent_to_matched_words_boundaries
 random.seed(106524)
-
+# 定义了TaskDataset类，用于加载和处理训练、验证和测试数据。
+# 包含将文本转换为BERT模型可接受的输入格式的逻辑。
 class TaskDataset(Dataset):
     def __init__(self, file, params, do_shuffle=False):
         """

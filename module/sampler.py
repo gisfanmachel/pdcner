@@ -8,6 +8,7 @@ import math
 import random
 random.seed(106524)
 
+# 定义了SequentialDistributedSampler类，用于分布式训练中的样本采样。
 class SequentialDistributedSampler(Sampler):
     """
     Distributed Sampler that subsamples indicies sequentially,
