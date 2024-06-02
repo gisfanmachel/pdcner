@@ -1,11 +1,25 @@
 # -*- coding: utf-8 -*-
-
+# 文件包含了数据预处理的函数，这些函数主要用于将原始文本数据转换成模型可以处理的格式，以及构建词典树等任务
+# 这些函数共同支持数据的预处理工作，包括词汇匹配、词典树的构建以及标签的提取等，为模型的训练和评估准备好格式化的数据输入。
 import time
 import os
 import json
 from tqdm import tqdm, trange
 from module.lexicon_tree import Trie
 
+
+
+# 这个函数接收一个句子和词典树作为输入，返回每个字对应的匹配词以及词边界。边界类型包括词的开始(B-)、中间(M-)、结尾(E-)、单字词(S-)，以及它们的组合形式。
+#
+# 参数:
+#
+# sent: 输入的句子，以字为单位的数组。
+# lexicon_tree: 词典树对象。
+# max_word_num: 最多匹配的词的数量。
+# 返回值:
+#
+# sent_words: 句子中每个字归属的词组。
+# sent_boundaries: 句子中每个字所属的边界类型。
 def sent_to_matched_words_boundaries(sent, lexicon_tree, max_word_num=None):
     """
     输入一个句子和词典树, 返回句子中每个字所属的匹配词, 以及该字的词边界
@@ -83,6 +97,17 @@ def sent_to_matched_words_boundaries(sent, lexicon_tree, max_word_num=None):
 
     return sent_words, new_sent_boundaries
 
+# 这个函数用于获取句子的匹配词，并按照BMES（Begin, Middle, End, Single）进行分组。
+#
+# 参数:
+#
+# sent: 一个字的数组。
+# lexicon_tree: 词汇表树。
+# max_word_num: 最大词数。
+# 返回值:
+#
+# sent_words: 包含BMES分组的列表。
+# sent_group_mask: 标记每个分组是否包含词
 def sent_to_distinct_matched_words(sent, lexicon_tree):
     """
     得到句子的匹配词, 并进行分组, 按照BMES进行分组
@@ -119,7 +144,7 @@ def sent_to_distinct_matched_words(sent, lexicon_tree):
 
     return sent_words, sent_group_mask
 
-
+# 此函数与 sent_to_matched_words_boundaries 类似，但只返回匹配的词，不包含边界信息。
 def sent_to_matched_words(sent, lexicon_tree, max_word_num=None):
     """same to sent_to_matched_words_boundaries, but only return words"""
     sent_length = len(sent)
@@ -149,6 +174,7 @@ def sent_to_matched_words(sent, lexicon_tree, max_word_num=None):
 
     return sent_words
 
+# 这个函数返回句子中所有匹配词的集合。
 def sent_to_matched_words_set(sent, lexicon_tree, max_word_num=None):
     """return matched words set"""
     sent_length = len(sent)
@@ -163,6 +189,17 @@ def sent_to_matched_words_set(sent, lexicon_tree, max_word_num=None):
     matched_words_set = sorted(matched_words_set)
     return matched_words_set
 
+# 这个函数用于从数据文件和词汇文件中获取匹配的词。
+#
+# 参数:
+#
+# files: 输入数据文件。
+# vocab_files: 输入词汇文件。
+# scan_nums: 要扫描的词汇文件数量。
+# 返回值:
+#
+# total_matched_words: 所有找到的匹配词。
+# lexicon_tree: 构建的词典树。
 
 def get_corpus_matched_word_from_vocab_files(files, vocab_files, scan_nums=None):
     """
@@ -205,7 +242,7 @@ def get_corpus_matched_word_from_vocab_files(files, vocab_files, scan_nums=None)
     total_matched_words = get_corpus_matched_word_from_lexicon_tree(files, lexicon_tree)
     return total_matched_words, lexicon_tree
 
-
+# 此函数接收数据文件和词典树，返回所有匹配的词。
 def get_corpus_matched_word_from_lexicon_tree(files, lexicon_tree):
     """
     数据类型统一为json格式, {'text': , 'label': }
@@ -244,6 +281,14 @@ def get_corpus_matched_word_from_lexicon_tree(files, lexicon_tree):
             f.write("%s\n"%(word))
 
     return total_matched_words
+
+# 这个函数通过查找分词词汇表和全量词词汇表的交集，将交集词插入到词典树中。
+#
+# 参数:
+#
+# seg_vocab: 分词词汇表文件。
+# word_vocab: 全量的词文件。
+# lexicon_tree: 词典树。
 
 def insert_seg_vocab_to_lexicon_tree(seg_vocab, word_vocab, lexicon_tree):
     """
@@ -287,8 +332,44 @@ def insert_seg_vocab_to_lexicon_tree(seg_vocab, word_vocab, lexicon_tree):
 
     return lexicon_tree
 
-
+# 此函数用于从词汇文件构建词典树。
+#
+# 参数:
+#
+# vocab_files: 词汇表文件列表。
+# scan_nums: 每个文件要扫描的行数。
+# 返回值:
+#
+# lexicon_tree: 构建的词典树。
 def build_lexicon_tree_from_vocabs(vocab_files, scan_nums=None):
+    # build_lexicon_tree_from_vocabs 方法的原理是构建一个词典树（Trie 树），这是一种用于存储字符串数据集以进行快速检索的数据结构。在自然语言处理（NLP）中，词典树通常用于快速匹配和检索文本中的词或短语。
+    #
+    # 词典树是一种特殊的树形结构，其中每个节点代表一个字符，从根节点到某一节点的路径表示一个词。以下是 build_lexicon_tree_from_vocabs 方法的工作原理：
+    #
+    # 初始化 Trie 树:
+    #
+    # 创建一个 Trie 树的根节点，这个根节点不包含任何字符，它的功能是作为树的起始点。
+    # 读取词汇文件:
+    #
+    # 遍历传入的词汇文件列表，每个文件代表一个词汇表。
+    # 构建 Trie 节点:
+    #
+    # 对于每个文件中的每行（代表一个词），从根节点开始，为每个字符创建子节点。
+    # 每个字符都是 Trie 树中的一个节点，如果一个字符在树中不存在，则创建一个新的节点。
+    # 插入词汇:
+    #
+    # 将每个词插入 Trie 树中。这意味着按照词中的字符顺序，从根节点开始，为每个字符创建或找到相应的子节点。
+    # 如果字符是词的最后一个字符，则将该节点标记为词的结束（is_word = True）。
+    # 维护最大深度:
+    #
+    # 更新 Trie 树的最大深度，这通常是最长词的长度。
+    # 返回 Trie 树:
+    #
+    # 完成所有词汇的插入后，返回构建好的 Trie 树。
+    # 词典树的这种结构使得它在词频统计、自动补全、拼写检查等任务中非常有用。在中文NLP任务中，词典树可以用来快速检索句子中的词，以及它们的边界信息，这对于诸如命名实体识别（NER）等任务至关重要。
+    #
+    # 在 preprocess.py 文件中，build_lexicon_tree_from_vocabs 方法通过构建词典树，为后续的句子处理提供了快速匹配已知词汇的能力，这有助于提高诸如实体识别等任务的效率和准确性。
+
     # 1.获取词汇表
     print(vocab_files)
     vocabs = set()
@@ -319,7 +400,13 @@ def build_lexicon_tree_from_vocabs(vocab_files, scan_nums=None):
 
     return lexicon_tree
 
-
+# 这个函数从数据文件中提取所有的标签，并写入到标签文件中。
+#
+# 参数:
+#
+# files: 数据文件列表。
+# label_file: 标签文件路径。
+# defalut_label: 默认标签。
 def get_all_labels_from_corpus(files, label_file, defalut_label='O'):
     """
     Args:

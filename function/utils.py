@@ -50,7 +50,46 @@ def load_pretrain_embed(embedding_path, max_scan_num=1000000, add_seg_vocab=Fals
 
     return embed_dict, embed_dim
 
+# 为语料库构建预训练的词嵌入（word embeddings）。这个过程涉及加载预训练的词向量，并将其与语料库中出现的词进行匹配
 
+# 参数说明
+# embedding_path: 预训练词嵌入文件的路径。
+# word_vocab: 语料库的词汇表对象，包含语料库中所有独特词的列表。
+# embed_dim: 词嵌入的维度，默认为200。
+# max_scan_num: 加载预训练词嵌入时扫描的最大词数。
+# saved_corpus_embedding_dir: 保存构建的词嵌入文件的目录。
+# add_seg_vocab: 是否添加额外的词汇表（例如分词词汇表）。
+# 函数逻辑
+# 检查缓存:
+# 函数首先检查是否已经为当前语料库构建了词嵌入，并且是否保存在saved_corpus_embedding_dir指定的目录中。如果是，则直接从文件加载，避免重复构建。
+#
+# 加载预训练词嵌入:
+# 如果缓存中没有构建好的词嵌入，则从embedding_path指定的文件中加载预训练的词嵌入。函数load_pretrain_embed被调用来读取文件，并返回一个字典embed_dict，其中包含已加载词的词向量，以及embed_dim。
+#
+# 初始化词嵌入矩阵:
+# 创建一个矩阵pretrained_emb，其大小为[word_vocab.item_size, embed_dim]，用于存储语料库中每个词的词嵌入。
+#
+# 匹配和赋值:
+# 遍历词汇表中的每个词，检查它是否存在于embed_dict中：
+#
+# 如果存在，将预训练的词向量赋值给pretrained_emb矩阵中对应的行。
+# 如果不存在，为该词随机初始化一个词向量，并记录未匹配的词的数量。
+# 保存构建的词嵌入:
+# 将构建的词嵌入矩阵pretrained_emb保存到文件中，以便于将来重用。
+#
+# 打印统计信息:
+# 打印匹配的词数、未匹配的词数以及未匹配词的百分比。
+#
+# 返回结果:
+# 函数返回构建的词嵌入矩阵pretrained_emb和词嵌入的维度embed_dim。
+#
+# 用途
+# 这个函数的目的是为特定的语料库创建一个词嵌入矩阵，该矩阵可以用于BERT模型的训练，以提供给模型额外的词向量信息。这对于处理BERT词汇表中未包含的词特别有用，因为它们可以通过预训练的词嵌入得到有效的表示。
+#
+# 注意事项
+# 该函数假设预训练词嵌入文件的格式是每行一个词向量，词向量中的元素由空格分隔。
+# 如果embedding_path指定的文件非常大，max_scan_num可以用来限制加载的词向量数量，以减少内存使用。
+# 函数提供了一个可选的参数add_seg_vocab，允许在构建词嵌入时考虑额外的词汇表。这在处理某些特定的NLP任务时可能很有用。
 def build_pretrained_embedding_for_corpus(
         embedding_path,
         word_vocab,
