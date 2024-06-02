@@ -199,7 +199,7 @@ def train(model, args, train_dataset, dev_dataset, test_dataset, label_vocab, tb
 
     ## 2.optimizer and model
     optimizer, scheduler = get_optimizer(model, args, t_total)
-
+    # 混合精度训练
     if args.fp16 and _use_apex:
         model, optimizer = amp.initialize(model, optimizer, opt_level=args.fp16_opt_level)
 
@@ -514,6 +514,50 @@ def evaluate(label_file, model, args, dataset, label_vocab, global_step, descrip
 
 # 定义了一个对比损失函数，用于对比学习。
 # 用了对比学习，正样本拉近距离，负样本拉远距离，类似这样
+
+# cts_loss函数是一个基于对比学习的损失函数，用于拉近相似样本之间的距离，同时推远不相似样本之间的距离。以下是该函数的详细解释：
+#
+# 参数说明
+# z_i: 一批样本的嵌入表示，形状为 [B, D]，其中 B 是批量大小，D 是嵌入维度。
+# z_j: 与 z_i 相对应的另一批样本的嵌入表示，形状也为 [B, D]。
+# temp: 温度参数，用于控制softmax函数的平滑程度。
+# batch_size: 当前处理的批量大小。
+# 函数逻辑
+# 合并嵌入:
+# z = torch.cat((z_i, z_j), dim=0) 将两个批次的嵌入合并为一个 [2B, D] 的矩阵。
+#
+# 计算相似性矩阵:
+# sim = torch.mm(z, z.T) / temp 计算合并后嵌入的点积，并通过温度参数进行缩放，得到一个 [2B, 2B] 的相似性矩阵。
+#
+# 提取正样本相似性:
+# sim_i_j 和 sim_j_i 分别是通过在相似性矩阵上取对角线和负对角线元素得到的两个 [B, 1] 的向量，代表正样本之间的相似性。
+#
+# 组合正样本:
+# positive_samples = torch.cat((sim_i_j, sim_j_i), dim=0).reshape(N, 1) 将两个正样本相似性向量合并为一个 [2B, 1] 的矩阵。
+#
+# 创建掩码:
+# mask = mask_correlated_samples(batch_size) 创建一个掩码，用于在相似性矩阵中选择负样本。
+#
+# 提取负样本相似性:
+# negative_samples = sim[mask].reshape(N, -1) 根据掩码从相似性矩阵中提取负样本相似性。
+#
+# 创建标签:
+# labels = torch.zeros(N).to(positive_samples.device).long() 创建一个全0的标签向量，表示所有样本都是类别0。
+#
+# 拼接正负样本:
+# logits = torch.cat((positive_samples, negative_samples), dim=1) 将正样本和负样本相似性拼接起来，形成一个 [N, C] 的 logits 矩阵，其中 C 是类别数（正样本数加负样本数）。
+#
+# 计算交叉熵损失:
+# loss_ce = ce_loss(logits, labels) 使用交叉熵损失函数计算最终的损失。
+#
+# 返回损失:
+# 函数返回计算得到的损失值。
+#
+# 与原始损失函数的不同之处
+# 基于相似性: cts_loss基于样本之间的相似性进行计算，而不是直接基于标签。
+# 负采样: 通过负采样引入额外的对比项，鼓励模型将正样本与负样本区分开来。
+# 温度调节: 使用温度参数来控制softmax函数的平滑程度，影响学习过程。
+# 这种损失函数通常用于无监督或自监督学习场景，可以帮助模型学习区分不同样本的特征表示，从而提高模型对输入数据的理解。在某些任务中，如异常检测或相似性度量，这种损失函数可能比传统的监督学习损失函数更有效。
 def cts_loss(z_i, z_j, temp, batch_size):  # B * D    B * D
 
     N = 2 * batch_size
