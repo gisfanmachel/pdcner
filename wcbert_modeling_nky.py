@@ -520,6 +520,7 @@ class WCBertCRFForTokenClassification(BertPreTrainedModel):
             boundary_ids=boundary_ids
         )
 
+
         sequence_output = outputs[0]
         sequence_output = self.dropout(sequence_output)
         logits = self.hidden2tag(sequence_output)

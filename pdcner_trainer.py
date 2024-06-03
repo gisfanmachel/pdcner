@@ -99,7 +99,7 @@ def visualize_layerwise_embeddings(hidden_states, masks, labels, epoch, title, l
 
     plt.savefig(f'/tmp/plots/{title}/{epoch}', format='png', pad_inches=0)
 
-def visualize_embeddings(embeddings, labels, title="Embedding Visualization", save_path=None):
+def visualize_embeddings_pca(embeddings, labels, title="Embedding Visualization", save_path=None):
     pca = PCA(n_components=2)  # 降维到2维
     embeddings_2d = pca.fit_transform(embeddings)
 
@@ -114,6 +114,23 @@ def visualize_embeddings(embeddings, labels, title="Embedding Visualization", sa
 
     if save_path:
         plt.savefig(save_path)
+    plt.show()
+
+def visualize_embeddings_tsne(embeddings, labels, title="Embedding Visualization", save_path=None):
+    # 将embedding通过PCA或t-SNE转换为二维或三维数据
+    tsne = TSNE(n_components=2, random_state=0)
+    embeddings_2d = tsne.fit_transform(embeddings)
+
+    # 创建散点图
+    plt.figure(figsize=(10, 8))
+    scatter = plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5, c=labels, cmap='viridis')
+    # 添加图例
+    plt.legend(handles=scatter.legend_elements()[0], labels=sorted(set(labels)))
+    # 添加标题和轴标签
+    plt.title('BERT Embedding Visualization')
+    plt.xlabel('Component 1')
+    plt.ylabel('Component 2')
+    # 显示图表
     plt.show()
 
 # 用于设置随机种子以确保结果的可重复性。
@@ -338,38 +355,22 @@ def train(model, args, train_dataset, dev_dataset, test_dataset, label_vocab, tb
 
                 # 对输出的emeding进行可视化
                 # 确保model的forward方法返回embedding
-                embeddings = outputs[1]
+                embeddings = outputs[2]
                 if (step + 1) == len(epoch_iterator):
                     # 假设labels是当前batch的标签
                     labels = batch[6]  # 根据你的数据格式调整
-                    visualize_embeddings(embeddings.detach().cpu().numpy(), labels)
-                    # 假设labels是当前batch的标签
-                    # visualize_embeddings(embeddings.detach().cpu().numpy(), batch[6].detach().cpu().numpy())
-                    # 这个示例假设模型的输出是一个包含loss和embedding的字典，并且embedding可以作为额外的输出。你可能需要根据你的模型的实际输出来调整这部分代码。
-                    #
-                    # 此外，visualize_embeddings函数将embedding降维并使用散点图进行可视化。你可以根据需要调整PCA的组件数量或使用其他降维技术，如t-SNE。
+                    visualize_embeddings_tsne(embeddings.detach().cpu().numpy(), labels)
 
-                    # 将embedding通过PCA或t-SNE转换为二维或三维数据
-                    # tsne = TSNE(n_components=2, random_state=0)
-                    # embeddings_2d = tsne.fit_transform(embeddings)
-                    # plt.figure(figsize=(10, 10))
-                    # plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5)
-                    # plt.title('BERT Embedding Visualization')
-                    # plt.xlabel('Component 1')
-                    # plt.ylabel('Component 2')
-                    # plt.show()
+                    # # 可视化嵌入
+                    # visualize_layerwise_embeddings(hidden_states=embeddings.output_hidden_states,
+                    #                                masks=batch[1],
+                    #                                labels=batch[6],
+                    #                                epoch=epoch,
+                    #                                title='train_data',
+                    #                                layers_to_visualize=[0, 1, 2, 3, 8, 9, 10, 11]
+                    #                                )
 
-                    # # 创建散点图
-                    # plt.figure(figsize=(10, 8))
-                    # scatter = plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap='viridis')
-                    # # 添加图例
-                    # plt.legend(handles=scatter.legend_elements()[0], labels=sorted(set(labels)))
-                    # # 添加标题和轴标签
-                    # plt.title('BERT Embedding Visualization')
-                    # plt.xlabel('Component 1')
-                    # plt.ylabel('Component 2')
-                    # # 显示图表
-                    # plt.show()
+
 
                 # #修改损失函数
                 outputs_1 = model(**inputs)
@@ -597,7 +598,6 @@ def evaluate(label_file, model, args, dataset, label_vocab, global_step, descrip
 # 用了对比学习，正样本拉近距离，负样本拉远距离，类似这样
 
 # cts_loss函数是一个基于对比学习的损失函数，用于拉近相似样本之间的距离，同时推远不相似样本之间的距离。以下是该函数的详细解释：
-#
 # 参数说明
 # z_i: 一批样本的嵌入表示，形状为 [B, D]，其中 B 是批量大小，D 是嵌入维度。
 # z_j: 与 z_i 相对应的另一批样本的嵌入表示，形状也为 [B, D]。
@@ -606,25 +606,18 @@ def evaluate(label_file, model, args, dataset, label_vocab, global_step, descrip
 # 函数逻辑
 # 合并嵌入:
 # z = torch.cat((z_i, z_j), dim=0) 将两个批次的嵌入合并为一个 [2B, D] 的矩阵。
-#
 # 计算相似性矩阵:
 # sim = torch.mm(z, z.T) / temp 计算合并后嵌入的点积，并通过温度参数进行缩放，得到一个 [2B, 2B] 的相似性矩阵。
-#
 # 提取正样本相似性:
 # sim_i_j 和 sim_j_i 分别是通过在相似性矩阵上取对角线和负对角线元素得到的两个 [B, 1] 的向量，代表正样本之间的相似性。
-#
 # 组合正样本:
 # positive_samples = torch.cat((sim_i_j, sim_j_i), dim=0).reshape(N, 1) 将两个正样本相似性向量合并为一个 [2B, 1] 的矩阵。
-#
 # 创建掩码:
 # mask = mask_correlated_samples(batch_size) 创建一个掩码，用于在相似性矩阵中选择负样本。
-#
 # 提取负样本相似性:
 # negative_samples = sim[mask].reshape(N, -1) 根据掩码从相似性矩阵中提取负样本相似性。
-#
 # 创建标签:
 # labels = torch.zeros(N).to(positive_samples.device).long() 创建一个全0的标签向量，表示所有样本都是类别0。
-#
 # 拼接正负样本:
 # logits = torch.cat((positive_samples, negative_samples), dim=1) 将正样本和负样本相似性拼接起来，形成一个 [N, C] 的 logits 矩阵，其中 C 是类别数（正样本数加负样本数）。
 #
