@@ -10,6 +10,7 @@ import random
 import time
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -32,6 +33,8 @@ from wcbert_modeling_nky import WCBertCRFForTokenClassification, BertWordLSTMCRF
 from wcbert_parser import get_argparse
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+import seaborn as sns
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -72,6 +75,29 @@ logger.addHandler(fh)
 
 PREFIX_CHECKPOINT_DIR = "checkpoint"
 
+# dim_reducer: scikit-learn的t-SNE降维实现，将嵌入从BERT默认的768维降为2维。你还可以使用PCA，这取决于哪种更适合你的数据集；
+dim_reducer = TSNE(n_components=2)
+def visualize_layerwise_embeddings(hidden_states, masks, labels, epoch, title, layers_to_visualize):
+    num_layers = len(layers_to_visualize)
+
+    fig = plt.figure(figsize=(24, (num_layers / 4) * 6))  # 每个子图的大小为6x6，每一行将包含4个图
+    ax = [fig.add_subplot(num_layers / 4, 4, i + 1) for i in range(num_layers)]
+
+    labels = labels.numpy().reshape(-1)
+    for i, layer_i in enumerate(layers_to_visualize):
+        # 由层输出的嵌入，一个形状为(number_of_data_points, max_sequence_length, embedddings_dimension)的张量
+        layer_embeds = hidden_states[layer_i]
+        # 通过对序列的所有非掩码标记的嵌入取平均值，为每个数据点创建一个单一的嵌入，从而得到一个形状为(number_of_data_points, embedddings_dimension)的张量
+        layer_averaged_hidden_states = torch.div(layer_embeds.sum(dim=1), masks.sum(dim=1, keepdim=True))
+        # t-SNE维减少嵌入，形状为(number_of_data_points, embeddings_dimension)的张量
+        layer_dim_reduced_embeds = dim_reducer.fit_transform(layer_averaged_hidden_states.numpy())
+
+        df = pd.DataFrame.from_dict(
+            {'x': layer_dim_reduced_embeds[:, 0], 'y': layer_dim_reduced_embeds[:, 1], 'label': labels})
+
+        sns.scatterplot(data=df, x='x', y='y', hue='label', ax=ax[i])
+
+    plt.savefig(f'/tmp/plots/{title}/{epoch}', format='png', pad_inches=0)
 
 def visualize_embeddings(embeddings, labels, title="Embedding Visualization", save_path=None):
     pca = PCA(n_components=2)  # 降维到2维
@@ -317,6 +343,33 @@ def train(model, args, train_dataset, dev_dataset, test_dataset, label_vocab, tb
                     # 假设labels是当前batch的标签
                     labels = batch[6]  # 根据你的数据格式调整
                     visualize_embeddings(embeddings.detach().cpu().numpy(), labels)
+                    # 假设labels是当前batch的标签
+                    # visualize_embeddings(embeddings.detach().cpu().numpy(), batch[6].detach().cpu().numpy())
+                    # 这个示例假设模型的输出是一个包含loss和embedding的字典，并且embedding可以作为额外的输出。你可能需要根据你的模型的实际输出来调整这部分代码。
+                    #
+                    # 此外，visualize_embeddings函数将embedding降维并使用散点图进行可视化。你可以根据需要调整PCA的组件数量或使用其他降维技术，如t-SNE。
+
+                    # 将embedding通过PCA或t-SNE转换为二维或三维数据
+                    # tsne = TSNE(n_components=2, random_state=0)
+                    # embeddings_2d = tsne.fit_transform(embeddings)
+                    # plt.figure(figsize=(10, 10))
+                    # plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5)
+                    # plt.title('BERT Embedding Visualization')
+                    # plt.xlabel('Component 1')
+                    # plt.ylabel('Component 2')
+                    # plt.show()
+
+                    # # 创建散点图
+                    # plt.figure(figsize=(10, 8))
+                    # scatter = plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap='viridis')
+                    # # 添加图例
+                    # plt.legend(handles=scatter.legend_elements()[0], labels=sorted(set(labels)))
+                    # # 添加标题和轴标签
+                    # plt.title('BERT Embedding Visualization')
+                    # plt.xlabel('Component 1')
+                    # plt.ylabel('Component 2')
+                    # # 显示图表
+                    # plt.show()
 
                 # #修改损失函数
                 outputs_1 = model(**inputs)
