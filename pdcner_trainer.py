@@ -30,6 +30,8 @@ from function.utils import build_pretrained_embedding_for_corpus, save_preds_for
 from module.sampler import SequentialDistributedSampler
 from wcbert_modeling_nky import WCBertCRFForTokenClassification, BertWordLSTMCRFForTokenClassification
 from wcbert_parser import get_argparse
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -69,6 +71,24 @@ logger.addHandler(chlr)
 logger.addHandler(fh)
 
 PREFIX_CHECKPOINT_DIR = "checkpoint"
+
+
+def visualize_embeddings(embeddings, labels, title="Embedding Visualization", save_path=None):
+    pca = PCA(n_components=2)  # 降维到2维
+    embeddings_2d = pca.fit_transform(embeddings)
+
+    plt.figure(figsize=(10, 8))
+    for i, label in enumerate(labels):
+        plt.scatter(embeddings_2d[i, 0], embeddings_2d[i, 1], label=label)
+
+    plt.title(title)
+    plt.xlabel('First principal component')
+    plt.ylabel('Second principal component')
+    plt.legend()
+
+    if save_path:
+        plt.savefig(save_path)
+    plt.show()
 
 # 用于设置随机种子以确保结果的可重复性。
 def set_seed(seed):
@@ -289,6 +309,14 @@ def train(model, args, train_dataset, dev_dataset, test_dataset, label_vocab, tb
             else:
                 outputs = model(**inputs)
                 loss = outputs[0]
+
+                # 对输出的emeding进行可视化
+                # 确保model的forward方法返回embedding
+                embeddings = outputs[1]
+                if (step + 1) == len(epoch_iterator):
+                    # 假设labels是当前batch的标签
+                    labels = batch[6]  # 根据你的数据格式调整
+                    visualize_embeddings(embeddings.detach().cpu().numpy(), labels)
 
                 # #修改损失函数
                 outputs_1 = model(**inputs)
