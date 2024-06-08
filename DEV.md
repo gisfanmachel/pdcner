@@ -283,3 +283,6 @@ def cts_loss(z_i, z_j, temp, batch_size):  # B * D    B * D
 
   embedding  4,256,786维度的张量
   由层输出的嵌入，一个形状为(number_of_data_points, max_sequence_length, embedddings_dimension)的张量
+    number_of_data_points 是批处理中数据点的数量。
+    max_sequence_length 是序列的最大长度。
+    embeddings_dimension 是嵌入的维度，例如BERT模型中通常是768。
