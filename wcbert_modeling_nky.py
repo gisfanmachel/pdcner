@@ -517,11 +517,17 @@ class WCBertCRFForTokenClassification(BertPreTrainedModel):
             token_type_ids=token_type_ids,
             matched_word_embeddings=matched_word_embeddings,
             matched_word_mask=matched_word_mask,
-            boundary_ids=boundary_ids
+            boundary_ids=boundary_ids,
+            #增加这个，是为了让输出的embedding再多12层，修改，为了embeding可视化
+            output_hidden_states=True
         )
 
 
         sequence_output = outputs[0]
+        # 前向传播给定output_hidden_states=True参数时，BertLayer嵌入层和12个BertLayer层中的每一层都可以返回它们的输出（也称为hidden_states ）
+        # 模型的维数(13, number_of_data_points, max_sequence_length, embeddings_dimension)
+        # 模型所有层的隐藏状态的列表。
+        hidden_states = outputs[2]
         sequence_output = self.dropout(sequence_output)
         logits = self.hidden2tag(sequence_output)
 
@@ -531,7 +537,7 @@ class WCBertCRFForTokenClassification(BertPreTrainedModel):
             _, preds = self.crf._viterbi_decode(logits, attention_mask)
             # return (loss, preds)
             # 修改部分
-            return (loss, preds, sequence_output)
+            return (loss, preds, sequence_output,hidden_states)
         elif flag == 'Predict':
             _, preds = self.crf._viterbi_decode(logits, attention_mask)
             return (preds,)
