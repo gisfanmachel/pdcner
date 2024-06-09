@@ -74,30 +74,44 @@ logger.addHandler(chlr)
 logger.addHandler(fh)
 
 PREFIX_CHECKPOINT_DIR = "checkpoint"
-
+# 为数据集加载标签，这将用于在可视化中对每个数据样本进行颜色编码。
+# 当模型的前向传播给定output_hidden_states=True参数时，BertLayer嵌入层和12个BertLayer层中的每一层都可以返回它们的输出（也称为hidden_states ）。因此，模型的维数(13, number_of_data_points, max_sequence_length, embeddings_dimension)。
+# 因为我们只对12个 BertLayer层的嵌入感兴趣，所以我们将不需要的BertLayer层嵌入切掉，只留下 (12, number_of_data_points, max_sequence_length, embeddings_dimension)
 # dim_reducer: scikit-learn的t-SNE降维实现，将嵌入从BERT默认的768维降为2维。你还可以使用PCA，这取决于哪种更适合你的数据集；
 dim_reducer = TSNE(n_components=2)
 def visualize_layerwise_embeddings(hidden_states, masks, labels, epoch, title, layers_to_visualize):
     num_layers = len(layers_to_visualize)
 
-    fig = plt.figure(figsize=(24, (num_layers / 4) * 6))  # 每个子图的大小为6x6，每一行将包含4个图
-    ax = [fig.add_subplot(num_layers / 4, 4, i + 1) for i in range(num_layers)]
+    fig = plt.figure(figsize=(24, (int(num_layers / 4)) * 6))  # 每个子图的大小为6x6，每一行将包含4个图
+    ax = [fig.add_subplot(int(num_layers / 4), 4, i + 1) for i in range(num_layers)]
 
-    labels = labels.numpy().reshape(-1)
+    labels = labels.detach().cpu().numpy().reshape(-1)
     for i, layer_i in enumerate(layers_to_visualize):
         # 由层输出的嵌入，一个形状为(number_of_data_points, max_sequence_length, embedddings_dimension)的张量
         layer_embeds = hidden_states[layer_i]
+        # layer_embeds.sum(dim=1) 沿着序列长度维度（dim=1）对嵌入向量求和，将嵌入向量的维度从 (number_of_data_points, max_sequence_length, embeddings_dimension) 减少到 (number_of_data_points, embeddings_dimension)。
+        # masks.sum(dim=1, keepdim=True) 沿着序列长度维度对掩码求和，并使用 keepdim=True 保持维度，这样求和结果的维度是 (number8_of_data_points, 1)。
+        # torch.div(..., masks.sum(dim=1, keepdim=True)) 将求和后的嵌入向量除以对应的掩码求和，得到平均嵌入向量。这一步确保了只有非掩码（即有效的标记）对嵌入向量的平均值有贡献。
         # 通过对序列的所有非掩码标记的嵌入取平均值，为每个数据点创建一个单一的嵌入，从而得到一个形状为(number_of_data_points, embedddings_dimension)的张量
+        # 因此，layer_averaged_hidden_states 的最终维度是 (number_of_data_points, embeddings_dimension)。这意味着每个数据点现在由一个单一的嵌入向量表示，该向量是其序列中所有有效标记嵌入向量的平均值。
         layer_averaged_hidden_states = torch.div(layer_embeds.sum(dim=1), masks.sum(dim=1, keepdim=True))
         # t-SNE维减少嵌入，形状为(number_of_data_points, embeddings_dimension)的张量
-        layer_dim_reduced_embeds = dim_reducer.fit_transform(layer_averaged_hidden_states.numpy())
+        # layer_dim_reduced_embeds 是通过将 layer_averaged_hidden_states 通过 t-SNE 降维得到的。t-SNE 算法将高维数据映射到二维空间，因此其输出的维度是固定的，为 (number_of_data_points, 2)。
+        # 这里的 number_of_data_points 是批处理中数据点的数量，而 2 表示 t-SNE 降维后的二维坐标。所以无论原始嵌入向量的维度是多少，经过 t-SNE 处理后，每个数据点都将被表示为一个包含两个坐标值的向量，这两个坐标值代表了在二维空间中的位置。
+        layer_dim_reduced_embeds = dim_reducer.fit_transform(layer_averaged_hidden_states.detach().cpu().numpy())
 
+
+        labels=generate_label_array(len(layer_dim_reduced_embeds[:, 0]))
         df = pd.DataFrame.from_dict(
             {'x': layer_dim_reduced_embeds[:, 0], 'y': layer_dim_reduced_embeds[:, 1], 'label': labels})
 
         sns.scatterplot(data=df, x='x', y='y', hue='label', ax=ax[i])
 
-    plt.savefig(f'/tmp/plots/{title}/{epoch}', format='png', pad_inches=0)
+    plt.savefig(f'/data/LEBERT-main/tmp/nky-pig/20240610/epoch_{epoch}.png', format='png', pad_inches=0)
+
+
+def generate_label_array(n):
+    return np.array(['label' + str(i + 1) for i in range(n)])
 
 def visualize_embeddings_pca(embeddings, labels, title="Embedding Visualization", save_path=None):
     pca = PCA(n_components=2)  # 降维到2维
@@ -352,23 +366,28 @@ def train(model, args, train_dataset, dev_dataset, test_dataset, label_vocab, tb
             else:
                 outputs = model(**inputs)
                 loss = outputs[0]
-
                 # 对输出的emeding进行可视化
-                # 确保model的forward方法返回embedding
+                # 确保model的forward方法返回embedding]
+                # bert的嵌入层
                 embeddings = outputs[2]
+                # 多的12层+bert的嵌入层
+                hidden_states=outputs[3]
+
+
+
                 if (step + 1) == len(epoch_iterator):
                     # 假设labels是当前batch的标签
-                    labels = batch[6]  # 根据你的数据格式调整
-                    visualize_embeddings_tsne(embeddings.detach().cpu().numpy(), labels)
+                    # labels = batch[6]  # 根据你的数据格式调整
+                    # visualize_embeddings_tsne(embeddings.detach().cpu().numpy(), labels)
 
-                    # # 可视化嵌入
-                    # visualize_layerwise_embeddings(hidden_states=embeddings.output_hidden_states,
-                    #                                masks=batch[1],
-                    #                                labels=batch[6],
-                    #                                epoch=epoch,
-                    #                                title='train_data',
-                    #                                layers_to_visualize=[0, 1, 2, 3, 8, 9, 10, 11]
-                    #                                )
+                    # 只输出指定的8个layer信息，可修改
+                    visualize_layerwise_embeddings(hidden_states=hidden_states,
+                                                masks=batch[1],
+                                                labels=batch[6],
+                                                epoch=epoch,
+                                                title='train_data',
+                                                layers_to_visualize=[0, 1, 2, 3, 8, 9, 10, 11]
+                                                )
 
 
 
