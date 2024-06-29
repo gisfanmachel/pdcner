@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 import numpy as np
 from seqeval.metrics import f1_score, precision_score, recall_score, accuracy_score
 import os
@@ -70,7 +71,7 @@ def seq_f1_with_mask(description, global_step, output_dir, label_file, all_true_
     r = recall_score(true_labels, pred_labels)
     f1 = f1_score(true_labels, pred_labels)
 
-    # 按标签种类
+    # 按标签种类，得到所有标签
     # BMEO
     # BIOES
     label_type_list = get_label_type(label_file)
@@ -81,16 +82,23 @@ def seq_f1_with_mask(description, global_step, output_dir, label_file, all_true_
     # 原来的all计算，把标签匹配结果为空的也包含进去了，现在要排除掉，只计算有结果的标签
     new_all_true_labels = []
     new_all_pred_labels = []
+    # 在去掉匹配结果为空的基础上，再去掉control的结果
+    new_remove_control_true_labels = []
+    new_remove_control_pred_labels = []
     #  循环各个标签的结果
     for label_type in label_type_list:
         need_labels.append(label_type)
         need_true_labels = []
         need_pred_labels = []
+        need_remove_control_true_labels = []
+        need_remove_control_pred_labels = []
         for index in range(len(true_labels)):
             tmp_true_list = true_labels[index]
             tmp_pred_list = pred_labels[index]
             need_true_list = []
             need_pred_list = []
+            need_remove_control_true_list = []
+            need_remove_control_pred_list = []
             for index2 in range(len(tmp_true_list)):
                 tmp_true = tmp_true_list[index2]
                 tmp_pred = tmp_pred_list[index2]
@@ -98,9 +106,15 @@ def seq_f1_with_mask(description, global_step, output_dir, label_file, all_true_
                 if label_type == tem_type:
                     need_true_list.append(tmp_true)
                     need_pred_list.append(tmp_pred)
+                    if label_type.lower() != "control":
+                        need_remove_control_true_list.append(tmp_true)
+                        need_remove_control_pred_list.append(tmp_pred)
             if len(need_true_list) > 0:
                 need_true_labels.append(need_true_list)
                 need_pred_labels.append(need_pred_list)
+            if len(need_remove_control_true_list) > 0:
+                need_remove_control_true_labels.append(need_remove_control_true_list)
+                need_remove_control_pred_labels.append(need_remove_control_pred_list)
         print("label is {}".format(label_type))
         result_str = ""
         if len(need_true_labels) > 0:
@@ -116,6 +130,16 @@ def seq_f1_with_mask(description, global_step, output_dir, label_file, all_true_
         else:
             # print("No Result")
             result_str = "No Result\n"
+        if len(need_remove_control_true_labels) > 0:
+            tmp_acc = accuracy_score(need_remove_control_true_labels, need_remove_control_pred_labels)
+            tmp_p = precision_score(need_remove_control_true_labels, need_remove_control_pred_labels)
+            tmp_r = recall_score(need_remove_control_true_labels, need_remove_control_pred_labels)
+            tmp_f1 = f1_score(need_remove_control_true_labels, need_remove_control_pred_labels)
+            result_str = "Result: acc: %.4f, p: %.4f, r: %.4f, f1: %.4f\n" % (tmp_acc, tmp_p, tmp_r, tmp_f1)
+            # print("Result: acc: %.4f, p: %.4f, r: %.4f, f1: %.4f\n" %
+            #       (tmp_acc, tmp_p, tmp_r, tmp_f1))
+            new_remove_control_true_labels += need_remove_control_true_labels
+            new_remove_control_pred_labels += need_remove_control_pred_labels
         if description == "Test":
             print(result_str)
         need_metrics.append(result_str)
@@ -131,6 +155,15 @@ def seq_f1_with_mask(description, global_step, output_dir, label_file, all_true_
     need_labels.append("new all")
     result_str = "Result: acc: %.4f, p: %.4f, r: %.4f, f1: %.4f\n" % (new_all_acc, new_all_p, new_all_r, new_all_f1)
     need_metrics.append(result_str)
+    # 新的去掉control的结果
+    new_remove_control_acc = accuracy_score(new_remove_control_true_labels, new_remove_control_pred_labels)
+    new_remove_control_p = precision_score(new_remove_control_true_labels, new_remove_control_pred_labels)
+    new_remove_control_r = recall_score(new_remove_control_true_labels, new_remove_control_pred_labels)
+    new_remove_control_f1 = f1_score(new_remove_control_true_labels, new_remove_control_pred_labels)
+    need_labels.append("new remove control")
+    result_str = "Result: acc: %.4f, p: %.4f, r: %.4f, f1: %.4f\n" % (new_remove_control_acc, new_remove_control_p, new_remove_control_r, new_remove_control_f1)
+    need_metrics.append(result_str)
+
 
     if description == "Test":
         if not os.path.exists(output_dir):
